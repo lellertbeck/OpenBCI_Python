@@ -34,7 +34,7 @@ END_BYTE = 0xC0  # end of data packet
 ADS1299_Vref = 4.5  #reference voltage for ADC in ADS1299.  set by its hardware
 ADS1299_gain = 24.0  #assumed gain setting for ADS1299.  set by its Arduino code
 scale_fac_uVolts_per_count = ADS1299_Vref/float((pow(2,23)-1))/ADS1299_gain*1000000.
-scale_fac_accel_G_per_count = 0.002 /(pow(2,4)) #assume set to +/4G, so 2 mG 
+scale_fac_accel_G_per_count = 0.002 /(pow(2,4)) #assume set to +/4G, so 2 mG
 '''
 #Commands for in SDK http://docs.openbci.com/software/01-Open BCI_SDK:
 
@@ -67,19 +67,17 @@ class OpenBCIBoard(object):
     aux, impedance: unused, for compatibility with ganglion API
   """
 
-  def __init__(self, port=None, baud=115200, filter_data=True,
+  def __init__(self, port='COM5', baud=115200, filter_data=True,
     scaled_output=True, daisy=False, aux=False, impedance=False, log=True, timeout=None):
     self.log = log # print_incoming_text needs log
     self.streaming = False
     self.baudrate = baud
     self.timeout = timeout
-    if not port:
-      port = self.find_port()
     self.port = port
     # might be handy to know API
     self.board_type = "cyton"
     print("Connecting to V3 at port %s" %(port))
-    self.ser = serial.Serial(port= port, baudrate = baud, timeout=timeout)
+    self.ser = serial.Serial(port= 'COM5', baudrate = baud, timeout=timeout)
 
     print("Serial established...")
 
@@ -112,35 +110,35 @@ class OpenBCIBoard(object):
   def getBoardType(self):
     """ Returns the version of the board """
     return self.board_type
-  
+
   def setImpedance(self, flag):
     """ Enable/disable impedance measure. Not implemented at the moment on Cyton. """
     return
-  
+
   def ser_write(self, b):
-    """Access serial port object for write""" 
+    """Access serial port object for write"""
     self.ser.write(b)
 
   def ser_read(self):
-    """Access serial port object for read""" 
+    """Access serial port object for read"""
     return self.ser.read()
 
   def ser_inWaiting(self):
-    """Access serial port object for inWaiting""" 
+    """Access serial port object for inWaiting"""
     return self.ser.inWaiting();
-    
+
   def getSampleRate(self):
     if self.daisy:
       return SAMPLE_RATE/2
     else:
       return SAMPLE_RATE
-  
+
   def getNbEEGChannels(self):
     if self.daisy:
       return self.eeg_channels_per_sample*2
     else:
       return self.eeg_channels_per_sample
-  
+
   def getNbAUXChannels(self):
     return  self.aux_channels_per_sample
 
@@ -165,7 +163,7 @@ class OpenBCIBoard(object):
     # Enclose callback funtion in a list if it comes alone
     if not isinstance(callback, list):
       callback = [callback]
-    
+
 
     #Initialize check connection
     self.check_connection()
@@ -189,13 +187,13 @@ class OpenBCIBoard(object):
       else:
         for call in callback:
           call(sample)
-      
+
       if(lapse > 0 and timeit.default_timer() - start_time > lapse):
         self.stop();
       if self.log:
         self.log_packet_count = self.log_packet_count + 1;
-  
-  
+
+
   """
     PARSER:
     Parses incoming data packet into OpenBCISample.
@@ -220,9 +218,9 @@ class OpenBCIBoard(object):
 
       #---------Start Byte & ID---------
       if self.read_state == 0:
-        
+
         b = read(1)
-        
+
         if struct.unpack('B', b)[0] == START_BYTE:
           if(rep != 0):
             self.warn('Skipped %d bytes before start found' %(rep))
@@ -245,7 +243,7 @@ class OpenBCIBoard(object):
 
           #3byte int in 2s compliment
           if (unpacked[0] > 127):
-            pre_fix = bytes(bytearray.fromhex('FF')) 
+            pre_fix = bytes(bytearray.fromhex('FF'))
           else:
             pre_fix = bytes(bytearray.fromhex('00'))
 
@@ -287,11 +285,11 @@ class OpenBCIBoard(object):
           self.packets_dropped = 0
           return sample
         else:
-          self.warn("ID:<%d> <Unexpected END_BYTE found <%s> instead of <%s>"      
+          self.warn("ID:<%d> <Unexpected END_BYTE found <%s> instead of <%s>"
             %(packet_id, val, END_BYTE))
           logging.debug(log_bytes_in);
           self.packets_dropped = self.packets_dropped + 1
-  
+
   """
 
   Clean Up (atexit)
@@ -311,7 +309,7 @@ class OpenBCIBoard(object):
       print("Closing Serial...")
       self.ser.close()
       logging.warning('serial closed')
-       
+
 
   """
 
@@ -338,13 +336,13 @@ class OpenBCIBoard(object):
     line = ''
     #Wait for device to send data
     time.sleep(1)
-    
+
     if self.ser.inWaiting():
       line = ''
       c = ''
      #Look for end sequence $$$
       while '$$$' not in line:
-        c = self.ser.read().decode('utf-8', errors='replace') # we're supposed to get UTF8 text, but the board might behave otherwise
+        c = self.ser.read()#.decode('utf-8', errors='replace') # we're supposed to get UTF8 text, but the board might behave otherwise
         line += c
       print(line);
     else:
@@ -359,7 +357,7 @@ class OpenBCIBoard(object):
     line = ''
     #Wait for device to send data
     time.sleep(2)
-    
+
     if serial.inWaiting():
       line = ''
       c = ''
@@ -390,7 +388,7 @@ class OpenBCIBoard(object):
   def print_packets_in(self):
     while self.streaming:
       b = struct.unpack('B', self.ser.read())[0];
-      
+
       if b == START_BYTE:
         self.attempt_reconnect = False
         if skipped_str:
@@ -400,7 +398,7 @@ class OpenBCIBoard(object):
         packet_str = "%03d"%(b) + '|';
         b = struct.unpack('B', self.ser.read())[0];
         packet_str = packet_str + "%03d"%(b) + '|';
-        
+
         #data channels
         for i in range(24-1):
           b = struct.unpack('B', self.ser.read())[0];
@@ -413,26 +411,26 @@ class OpenBCIBoard(object):
         for i in range(6-1):
           b = struct.unpack('B', self.ser.read())[0];
           packet_str = packet_str + '.' + "%03d"%(b);
-        
+
         b = struct.unpack('B', self.ser.read())[0];
         packet_str = packet_str + '.' + "%03d"%(b) + '|';
 
         #end byte
         b = struct.unpack('B', self.ser.read())[0];
-        
+
         #Valid Packet
         if b == END_BYTE:
           packet_str = packet_str + '.' + "%03d"%(b) + '|VAL';
           print(packet_str)
           #logging.debug(packet_str)
-        
+
         #Invalid Packet
         else:
           packet_str = packet_str + '.' + "%03d"%(b) + '|INV';
           #Reset
           self.attempt_reconnect = True
-          
-      
+
+
       else:
         print(b)
         if b == END_BYTE:
@@ -444,7 +442,7 @@ class OpenBCIBoard(object):
         self.last_reconnect = timeit.default_timer()
         self.warn('Reconnecting')
         self.reconnect()
- 
+
 
 
   def check_connection(self, interval = 2, max_packets_to_skip=10):
@@ -607,5 +605,3 @@ class OpenBCISample(object):
     self.channel_data = channel_data
     self.aux_data = aux_data
     self.imp_data = []
-
-
